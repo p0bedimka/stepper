@@ -3,6 +3,7 @@
 //
 #include "stepper.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -104,37 +105,48 @@ void Stepper_Stop(Stepper_Type *st) {
     }
 }
 
-void Stepper_TaskPlannerFunc(Stepper_Type *st) {
-
+void Stepper_TaskPlanner(Stepper_Type *st) {
     if (st == NULL) {
         return;
     }
 
-    int32_t tar_vel = Planner_Itf.GetTargVel(&st->pl);
+    uint32_t timeout = Planner_Itf.GetTimeAcc(&st->pl);
 
-    if (tar_vel != st->cur_vel) {
-        uint32_t time = st->GetTick();
-        uint32_t elapsed = 0;
+    uint32_t time = st->GetTick();
+    uint32_t elapsed = 0;
 
-        if (time >= st->time) {
-            elapsed = time - st->time;
-        } else {
-            elapsed = (UINT32_MAX - st->time) + time + 1;
-        }
+    if (time >= st->time)
+        elapsed = time - st->time;
+    else
+        elapsed = (UINT32_MAX - st->time) + time + 1;
 
+    if (timeout >= elapsed) {
         int32_t vel = Planner_Itf.GetVel(&st->pl, (float)elapsed);
 
         if (vel != st->cur_vel) {
             HAL_Stepper_Itf.TIM_SetFrequency(&st->htim, abs(vel));
             st->cur_vel = vel;
         }
-    } else if (tar_vel != st->tar_vel) {
-        if ((st->tar_vel ^ tar_vel) < 0 && tar_vel != 0 && st->tar_vel != 0) {
+    }
+    else if (st->tar_vel != st->cur_vel) {
+        if ((st->tar_vel ^ st->cur_vel) < 0 && st->cur_vel != 0 && st->tar_vel != 0)
             Planner_Itf.SetVel(&st->pl, st->cur_vel, 0);
-        } else {
+        else
             Planner_Itf.SetVel(&st->pl, st->cur_vel, st->tar_vel);
-        }
         st->time = st->GetTick();
+    }
+}
+
+void Stepper_PlannerIQR(Stepper_Type *st) {
+    if (st != NULL) {
+        if (st->htim.instance->SR & TIM_SR_UIF) {
+            st->htim.instance->SR &= ~TIM_SR_UIF;
+
+            if (st->cur_vel > 0)
+                HAL_Stepper_Itf.GPIO_Set(&st->dir);
+            else
+                HAL_Stepper_Itf.GPIO_Reset(&st->dir);
+        }
     }
 }
 
@@ -148,5 +160,6 @@ const Stepper_Interface Stepper_Itf = {
     .GetVel = Stepper_GetVelocity,
     .SetVel = Stepper_SetVelocity,
     .Stop = Stepper_Stop,
-    .TaskPlannerFunc = Stepper_TaskPlannerFunc
+    .TaskPlanner = Stepper_TaskPlanner,
+    .PlannerIQR = Stepper_PlannerIQR,
 };

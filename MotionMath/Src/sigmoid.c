@@ -16,6 +16,9 @@ void Sigmoid_Initialization(Sigmoid_Type *sig, Sigmoid_Init *init) {
     if (sig != NULL) {
         memset(sig, 0, sizeof(Sigmoid_Type));
         sig->v_jump = init->v_jump;
+        if (init->k_jump < 1)
+            init->k_jump = 1;
+        sig->k_jump = init->k_jump;
     }
 }
 
@@ -84,8 +87,8 @@ void Sigmoid_SetVel(Sigmoid_Type *sig, int32_t v0, int32_t v1) {
     sig->k = logf((float)abs(sig->dv)) / sig->t0;
 
     /* Находим время t_jump / 4, когда |v(t)| достигает v_jump */
-    float ratio = (float)sig->dv / (float)sig->v_jump;
-    sig->t_jump = (sig->t0 - logf(ratio - 1.f) / sig->k) / 4.f;
+    float ratio = fabsf((float)sig->dv) / (float)sig->v_jump;
+    sig->t_jump = (sig->t0 - logf(ratio - 1.f) / sig->k) / sig->k_jump;
 }
 
 /**
@@ -117,4 +120,8 @@ int32_t Sigmoid_GetVel(Sigmoid_Type *sig, float dt) {
             v = 0;
     }
     return (int32_t)roundf(v);
+}
+
+uint32_t Sigmoid_GetTimeAcc(Sigmoid_Type *sig) {
+    return (uint32_t)(sig->t0 * 2.f);
 }

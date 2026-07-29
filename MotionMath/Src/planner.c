@@ -12,4 +12,5 @@ const Planner_Interface Planner_Itf = {
     .GetTargVel = Sigmoid_GetTargVel,
     .SetVel     = Sigmoid_SetVel,
     .GetVel     = Sigmoid_GetVel,
+    .GetTimeAcc = Sigmoid_GetTimeAcc,
 };

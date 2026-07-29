@@ -29,7 +29,8 @@ typedef struct {
     int32_t (*GetVel)(Stepper_Type *st);
     void (*SetVel)(Stepper_Type *st, int32_t vel);
     void (*Stop)(Stepper_Type *st);
-    void (*TaskPlannerFunc)(Stepper_Type *st);
+    void (*TaskPlanner)(Stepper_Type *st);
+    void (*PlannerIQR)(Stepper_Type *st);
 } Stepper_Interface;
 
 extern const Stepper_Interface Stepper_Itf;
