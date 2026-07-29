@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.30)
 
-project(stepper-driver)
+project(stepper)
 
 file(GLOB_RECURSE STEPPER_MOTORS_SOURCES "App/Src/*.*" "MotionMath/Src/*.*" "Driver/Src/*.*")
 
