@@ -9,19 +9,18 @@
 
 #include "sigmoid.h"
 
-typedef Sigmoid_Type Planner_Type;
-typedef Sigmoid_Init Planner_Init;
+typedef Sigmoid_t Planner_t;
 
 typedef struct {
-    void (*Init)(Planner_Type *pl, Planner_Init *init);
-    void (*DeInit)(Planner_Type *pl);
-    uint32_t (*GetAcc)(Planner_Type *p);
-    void (*SetAcc)(Planner_Type *pl, uint32_t a);
-    int32_t (*GetInitVel)(Planner_Type *pl);
-    int32_t (*GetTargVel)(Planner_Type *pl);
-    void (*SetVel)(Planner_Type *pl, int32_t v0, int32_t v1);
-    int32_t (*GetVel)(Planner_Type *pl, float dt);
-    uint32_t (*GetTimeAcc)(Planner_Type *pl);
+    void (*Init)(Planner_t *pl);
+    void (*DeInit)(Planner_t *pl);
+    uint32_t (*GetAcc)(Planner_t *p);
+    void (*SetAcc)(Planner_t *pl, uint32_t a);
+    int32_t (*GetInitVel)(Planner_t *pl);
+    int32_t (*GetTargVel)(Planner_t *pl);
+    void (*SetVel)(Planner_t *pl, int32_t v0, int32_t v1);
+    int32_t (*GetVel)(Planner_t *pl, float dt);
+    uint32_t (*GetTimeAcc)(Planner_t *pl);
 } Planner_Interface;
 
 extern const Planner_Interface Planner_Itf;

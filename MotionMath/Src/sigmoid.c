@@ -10,41 +10,35 @@
 /**
  * @brief Инициализация сигмоидальной кривой
  * @param sig        Указатель на структуру сигмоидальной кривой
- * @param init    Прыжок от нулевой скорости (недопустимо малая скорость)
  */
-void Sigmoid_Initialization(Sigmoid_Type *sig, Sigmoid_Init *init) {
+void Sigmoid_Init(Sigmoid_t *sig) {
     if (sig != NULL) {
-        memset(sig, 0, sizeof(Sigmoid_Type));
-        sig->v_jump = init->v_jump;
-        if (init->k_jump < 1)
-            init->k_jump = 1;
-        sig->k_jump = init->k_jump;
+        if (sig->a < 1)
+            sig->a = 1;
+
+        if (sig->v_jump < 1)
+            sig->v_jump = 1;
+
+        if (sig->t_jump < 1)
+            sig->t_jump = 1;
     }
 }
 
-/**
- * @brief Деинициализация структуры сигмоидальной кривой (сброс состояния)
- * @param sig Указатель на структуру сигмоидальной кривой
- */
-void Sigmoid_DeInit(Sigmoid_Type *sig) {
-    memset(sig, 0, sizeof(Sigmoid_Type));
-}
-
-uint32_t Sigmoid_GetAcc(Sigmoid_Type *sig) {
+uint32_t Sigmoid_GetAcc(Sigmoid_t *sig) {
     uint32_t acc = 0;
     if (sig != NULL)
         acc = sig->a;
     return acc;
 }
 
-int32_t Sigmoid_GetInitVel(Sigmoid_Type *sig) {
+int32_t Sigmoid_GetInitVel(Sigmoid_t *sig) {
     int32_t v = 0;
     if (sig != NULL)
         v = sig->v0;
     return v;
 }
 
-int32_t Sigmoid_GetTargVel(Sigmoid_Type *sig) {
+int32_t Sigmoid_GetTargVel(Sigmoid_t *sig) {
     int32_t v = 0;
     if (sig != NULL)
         v = sig->v1;
@@ -56,7 +50,7 @@ int32_t Sigmoid_GetTargVel(Sigmoid_Type *sig) {
  * @param pl Указатель на структуру сигмоидальной кривой
  * @param a  Ускорение (ед/с²)
  */
-void Sigmoid_SetAcc(Sigmoid_Type *pl, const uint32_t a) {
+void Sigmoid_SetAcc(Sigmoid_t *pl, const uint32_t a) {
     if (pl != NULL)
         pl->a = a;
 }
@@ -68,7 +62,7 @@ void Sigmoid_SetAcc(Sigmoid_Type *pl, const uint32_t a) {
  * @param v1 Конечная скорость (ед/с)
  * @details Вычисляет параметры сигмоиды: dv, t0 и k
  */
-void Sigmoid_SetVel(Sigmoid_Type *sig, int32_t v0, int32_t v1) {
+void Sigmoid_SetVel(Sigmoid_t *sig, int32_t v0, int32_t v1) {
     if (sig == NULL)
         return;
 
@@ -101,7 +95,7 @@ void Sigmoid_SetVel(Sigmoid_Type *sig, int32_t v0, int32_t v1) {
  *          Если включён расчёт дистанции, интегрирует скорость:
  *          pos = v0*t + dv/k * ln(1 + e^(k*(t-t0)))
  */
-int32_t Sigmoid_GetVel(Sigmoid_Type *sig, float dt) {
+int32_t Sigmoid_GetVel(Sigmoid_t *sig, float dt) {
     if (sig == NULL)
         return 0;
 
@@ -122,6 +116,6 @@ int32_t Sigmoid_GetVel(Sigmoid_Type *sig, float dt) {
     return (int32_t)roundf(v);
 }
 
-uint32_t Sigmoid_GetTimeAcc(Sigmoid_Type *sig) {
+uint32_t Sigmoid_GetTimeAcc(Sigmoid_t *sig) {
     return (uint32_t)(sig->t0 * 2.f);
 }

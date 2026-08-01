@@ -4,8 +4,7 @@
 #include "planner.h"
 
 const Planner_Interface Planner_Itf = {
-    .Init       = Sigmoid_Initialization,
-    .DeInit     = Sigmoid_DeInit,
+    .Init       = Sigmoid_Init,
     .GetAcc     = Sigmoid_GetAcc,
     .SetAcc     = Sigmoid_SetAcc,
     .GetInitVel = Sigmoid_GetInitVel,
