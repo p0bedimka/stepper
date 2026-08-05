@@ -7,10 +7,6 @@
 #include <string.h>
 #include <math.h>
 
-/**
- * @brief Инициализация сигмоидальной кривой
- * @param sig        Указатель на структуру сигмоидальной кривой
- */
 void Sigmoid_Init(Sigmoid_t *sig) {
     if (sig != NULL) {
         if (sig->a < 1)
@@ -45,23 +41,11 @@ int32_t Sigmoid_GetTargVel(Sigmoid_t *sig) {
     return v;
 }
 
-/**
- * @brief Установка ускорения
- * @param pl Указатель на структуру сигмоидальной кривой
- * @param a  Ускорение (ед/с²)
- */
 void Sigmoid_SetAcc(Sigmoid_t *pl, const uint32_t a) {
     if (pl != NULL)
         pl->a = a;
 }
 
-/**
- * @brief Установка начальной и конечной скорости
- * @param sig Указатель на структуру сигмоидальной кривой
- * @param v0 Начальная скорость (ед/с)
- * @param v1 Конечная скорость (ед/с)
- * @details Вычисляет параметры сигмоиды: dv, t0 и k
- */
 void Sigmoid_SetVel(Sigmoid_t *sig, int32_t v0, int32_t v1) {
     if (sig == NULL)
         return;
@@ -85,16 +69,6 @@ void Sigmoid_SetVel(Sigmoid_t *sig, int32_t v0, int32_t v1) {
     sig->t_jump = (sig->t0 - logf(ratio - 1.f) / sig->k) / sig->k_jump;
 }
 
-/**
- * @brief Получение следующего значения скорости и дистанции
- * @param sig Указатель на структуру сигмоидальной кривой
- * @param dt  Приращение времени (мс)
- * @return   Структура с результатом расчёта
- * @details Вычисляет скорость по сигмоидальной функции:
- *          v(t) = v0 + dv / (1 + exp(-k*(t - t0)))
- *          Если включён расчёт дистанции, интегрирует скорость:
- *          pos = v0*t + dv/k * ln(1 + e^(k*(t-t0)))
- */
 int32_t Sigmoid_GetVel(Sigmoid_t *sig, float dt) {
     if (sig == NULL)
         return 0;
