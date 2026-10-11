@@ -1,64 +1,59 @@
 //
-// Created by Pobed on 27.07.2026.
+// Created by p0bedimka on 27.07.2026.
 //
 
+/**
+ * @file stepper_driver_stm32.h
+ * @brief Аппаратно-зависимый драйвер шагового двигателя для STM32.
+ *
+ * Реализация интерфейса StepperDriver_Interface на базе:
+ *   - TIM (таймер в режиме PWM) — генерация шаговых импульсов;
+ *   - GPIO (DIR)                — управление направлением;
+ *   - GPIO (EN)                 — управление питанием драйвера.
+ *
+ * Принцип работы:
+ *   Частота PWM = модуль скорости (шагов/с). Скважность 50% (pulse = (ARR+1)/2).
+ *   Направление задаётся состоянием пина DIR, которое обновляется в обработчике
+ *   прерывания по событию Update (чтобы избежать генерации ложных шагов при смене DIR).
+ */
 #ifndef STEPPER_DRIVER_STM32_H
 #define STEPPER_DRIVER_STM32_H
 
-#include <stdbool.h>
 #include <stdint.h>
 
 #include "main.h"
-#include "stepper_driver.h"
+#include "../../App/Core/Inc/stepper_driver.h"
 #include "stepper_driver_def_stm32.h"
 
 /**
- * @brief Структура конфигурации драйвера для STM32
- *
- * Содержит все необходимые настройки для управления таймером
- * и выводами шагового двигателя на микроконтроллерах STM32.
+ * @brief Структура состояния драйвера для STM32.
  */
 typedef struct {
-    StepperDriver_t base;
+    StepperDriver_t base;     ///< Базовый интерфейс
 
-    /**
-     * @brief Конфигурация таймера
-     */
     struct {
-        TIM_TypeDef *Instance;  /**< Указатель на регистры таймера (например, TIM1) */
-        uint8_t Channel;        /**< Номер канала таймера (1-4) */
-        uint8_t Bit;            /**< Разрядность таймера: TIM_16_BIT или TIM_32_BIT */
-        uint32_t Clock;         /**< Частота тактирования таймера в Гц */
-        IRQn_Type IRQn;         /**< Номер прерывания таймера (например, TIM1_UP_IRQn) */
+        TIM_TypeDef *Instance; ///< Указатель на регистры таймера (TIMx)
+        uint8_t      Channel;  ///< Номер канала (TIM_CHAN_1..4)
+        uint8_t      Bit;      ///< Разрядность таймера (TIM_16_BIT / TIM_32_BIT)
+        uint32_t     Clock;    ///< Тактовая частота таймера (Гц)
+        IRQn_Type    IRQn;     ///< Номер прерывания таймера
     } htim;
 
-    /**
-     * @brief Конфигурация вывода направления
-     */
     struct {
-        GPIO_TypeDef *Port;     /**< Порт GPIO для управления направлением */
-        uint16_t Pin;           /**< Номер пина (GPIO_Pin_x) */
-        uint32_t State;         /**< Текущее состояние (BSRR значение для установки) */
+        GPIO_TypeDef *Port;    ///< Порт пина DIR
+        uint16_t      Pin;     ///< Пин DIR
+        uint32_t      State;   ///< Текущее состояние (для атомарной записи через BSRR)
     } dir;
 
-    /**
-     * @brief Конфигурация вывода разрешения (Enable)
-     */
     struct {
-        GPIO_TypeDef *Port;     /**< Порт GPIO для управления разрешением */
-        uint16_t Pin;           /**< Номер пина (GPIO_Pin_x) */
+        GPIO_TypeDef *Port;    ///< Порт пина EN
+        uint16_t      Pin;     ///< Пин EN
     } en;
 
-    /**
-     * @brief Функция получения текущего времени в микросекундах
-     * @return Текущее время (мкс)
-     *
-     * Должна возвращать монотонно возрастающее значение.
-     * Используется планировщиком для расчёта интервалов.
-     */
-    uint32_t (*GetTick)(void);
+    uint32_t (*GetTick)(void); ///< Функция получения системного времени (например, HAL_GetTick)
 } StepperDriverSTM32_t;
 
+/// Экземпляр интерфейса драйвера для STM32
 extern const StepperDriver_Interface StepperDriver_Itf;
 
-#endif
+#endif // STEPPER_DRIVER_STM32_H

@@ -1,12 +1,22 @@
 //
-// Created by Pobed on 27.07.2026.
+// Created by p0bedimka on 27.07.2026.
 //
 
+/**
+ * @file stepper.h
+ * @brief Высокоуровневый модуль управления шаговым двигателем.
+ *
+ * Объединяет драйвер (аппаратную часть) и планировщик (алгоритм изменения скорости)
+ * в единый объект Stepper_t. Предоставляет пользователю простой API:
+ *   - установка целевой скорости;
+ *   - плавный разгон/торможение по выбранному закону;
+ *   - аварийная остановка;
+ *   - включение/отключение питания.
+ */
 #ifndef STEPPER_H
 #define STEPPER_H
 
 #include <stdint.h>
-
 #include "stepper_driver.h"
 #include "stepper_planner.h"
 
@@ -16,100 +26,36 @@
 #include "linear.h"
 
 /**
- * @brief Структура управления шаговым двигателем
+ * @brief Структура состояния шагового двигателя.
  *
- * Объединяет драйвер нижнего уровня и планировщик движения.
- * Содержит информацию о текущем и целевом состоянии двигателя.
+ * Содержит в себе драйвер, планировщик и текущее состояние (скорости, время).
  */
 typedef struct {
-    StepperDriver_t dr;        /**< Экземпляр драйвера двигателя (таймер + GPIO) */
-    StepperPlanner_t pl;            /**< Экземпляр планировщика движения (расчёт ускорений) */
+    StepperDriver_t  dr;       ///< Экземпляр драйвера (копируется при инициализации)
+    StepperPlanner_t pl;       ///< Экземпляр планировщика (копируется при инициализации)
 
-    volatile int32_t tar_vel; /**< Целевая скорость (импульсов/сек). Знак определяет направление */
-    volatile int32_t cur_vel; /**< Текущая фактическая скорость (импульсов/сек) */
-    volatile uint32_t time;   /**< Метка времени последнего вызова планировщика (мкс) */
+    volatile int32_t tar_vel;  ///< Целевая скорость, заданная пользователем (шагов/с)
+    volatile int32_t cur_vel;  ///< Текущая фактическая скорость (шагов/с)
+    volatile uint32_t time;    ///< Время начала текущего переходного процесса (мс)
 } Stepper_t;
 
 /**
- * @brief Интерфейс управления шаговым двигателем
- *
- * Набор функций-членов для работы с двигателем.
- * Реализован как структура с указателями на функции для удобства инкапсуляции.
+ * @brief Интерфейс (таблица виртуальных функций) модуля Stepper.
  */
 typedef struct {
-    /**
-     * @brief Инициализация двигателя
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*Init)(Stepper_t *motor, StepperDriver_t *dr, StepperPlanner_t *pl);
-
-    /**
-     * @brief Включение двигателя (разрешение ШИМ)
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*Enable)(Stepper_t *motor);
-
-    /**
-     * @brief Отключение двигателя (только при нулевой скорости)
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*Disable)(Stepper_t *motor);
-
-    /**
-     * @brief Получение текущего ускорения
-     * @param motor Указатель на структуру двигателя
-     * @return Ускорение (импульсов/сек²)
-     */
+    void     (*Init)(Stepper_t *motor, StepperDriver_t *dr, StepperPlanner_t *pl);
+    void     (*Enable)(Stepper_t *motor);
+    void     (*Disable)(Stepper_t *motor);
     uint32_t (*GetAcc)(Stepper_t *motor);
-
-    /**
-     * @brief Установка ускорения
-     * @param motor Указатель на структуру двигателя
-     * @param acc Ускорение (импульсов/сек²)
-     */
-    void (*SetAcc)(Stepper_t *motor, uint32_t acc);
-
-    /**
-     * @brief Получение текущей скорости
-     * @param motor Указатель на структуру двигателя
-     * @return Текущая скорость (импульсов/сек). Отрицательное - обратное направление
-     */
-    int32_t (*GetVel)(Stepper_t *motor);
-
-    /**
-     * @brief Установка целевой скорости (запуск движения)
-     * @param motor Указатель на структуру двигателя
-     * @param vel Целевая скорость (импульсов/сек)
-     */
-    void (*SetVel)(Stepper_t *motor, int32_t vel);
-
-    /**
-     * @brief Экстренная остановка двигателя
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*Stop)(Stepper_t *motor);
-
-    /**
-     * @brief Циклическая задача планировщика (вызывается в основном цикле)
-     *
-     * Расчитывает необходимую скорость на основе времени и текущего состояния.
-     * Должна вызываться с частотой не реже чем требуется для обновления скорости.
-     *
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*TaskPlanner)(Stepper_t *motor);
-
-    /**
-     * @brief Обработчик прерывания таймера
-     *
-     * Вызывается из ISR таймера для генерации импульсов шагового двигателя.
-     *
-     * @param motor Указатель на структуру двигателя
-     */
-    void (*TIMx_IRQHandler)(Stepper_t *motor);
+    void     (*SetAcc)(Stepper_t *motor, uint32_t acc);
+    int32_t  (*GetVel)(Stepper_t *motor);
+    void     (*SetVel)(Stepper_t *motor, int32_t vel);
+    void     (*Stop)(Stepper_t *motor);
+    void     (*TaskPlanner)(Stepper_t *motor);
+    void     (*TIMx_IRQHandler)(Stepper_t *motor);
 } Stepper_Interface;
 
-/** @brief Глобальный экземпляр интерфейса шагового двигателя */
+/// Экземпляр интерфейса для модуля Stepper
 extern const Stepper_Interface Stepper_Itf;
 
-#endif
+#endif // STEPPER_H
