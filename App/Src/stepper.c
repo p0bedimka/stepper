@@ -1,7 +1,7 @@
 //
 // Created by Pobed on 27.07.2026.
 //
-#include "step_motor.h"
+#include "stepper.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,15 +14,16 @@
  * Выполняет начальную конфигурацию драйвера и планировщика.
  * Устанавливает начальные значения скоростей и времени.
  */
-void StepMotor_Init(StepMotor_t *motor) {
-    if (!motor)
-        return;
+void Stepper_Init(Stepper_t *motor, MotorDriver_t dr, Planner_t pl) {
+    if (motor == NULL) return;
 
     /* Инициализация драйвера (таймеры, GPIO) */
+    motor->dr = dr;
     MotorDriver_Itf.Init(&motor->dr);
 
     /* Инициализация планировщика (параметры движения) */
-    Planner_Itf.Init(&motor->pl);
+    motor->pl = pl;
+    Planner_Init(&motor->pl);
 
     /* Сброс параметров движения */
     motor->tar_vel = 0;
@@ -38,7 +39,7 @@ void StepMotor_Init(StepMotor_t *motor) {
  *
  * Активирует выход ШИМ на таймере и включает силовую часть.
  */
-void StepMotor_Enable(StepMotor_t *motor) {
+void Stepper_Enable(Stepper_t *motor) {
     if (motor != NULL)
         MotorDriver_Itf.Enable(&motor->dr);
 }
@@ -50,7 +51,7 @@ void StepMotor_Enable(StepMotor_t *motor) {
  * Безопасное отключение - разрешено только при остановленном двигателе
  * (cur_vel == 0) для предотвращения потери шагов.
  */
-void StepMotor_Disable(StepMotor_t *motor) {
+void Stepper_Disable(Stepper_t *motor) {
     if (motor == NULL)
         return;
 
@@ -64,11 +65,11 @@ void StepMotor_Disable(StepMotor_t *motor) {
  * @param motor Указатель на структуру двигателя
  * @return Ускорение (импульсов/сек²)
  */
-uint32_t StepMotor_GetAcc(StepMotor_t *motor) {
+uint32_t Stepper_GetAcc(Stepper_t *motor) {
     if (motor == NULL)
         return 0;
 
-    return Planner_Itf.GetAcc(&motor->pl);
+    return Planner_GetAcc(&motor->pl);
 }
 
 /**
@@ -76,9 +77,9 @@ uint32_t StepMotor_GetAcc(StepMotor_t *motor) {
  * @param motor Указатель на структуру двигателя
  * @param acc Ускорение (импульсов/сек²)
  */
-void StepMotor_SetAcc(StepMotor_t *motor, uint32_t acc) {
+void Stepper_SetAcc(Stepper_t *motor, uint32_t acc) {
     if (motor != NULL)
-        Planner_Itf.SetAcc(&motor->pl, acc);
+        Planner_SetAcc(&motor->pl, acc);
 }
 
 /**
@@ -86,7 +87,7 @@ void StepMotor_SetAcc(StepMotor_t *motor, uint32_t acc) {
  * @param motor Указатель на структуру двигателя
  * @return Текущая скорость (импульсов/сек)
  */
-int32_t StepMotor_GetVel(StepMotor_t *motor) {
+int32_t Stepper_GetVel(Stepper_t *motor) {
     if (motor == NULL)
         return 0;
 
@@ -101,7 +102,7 @@ int32_t StepMotor_GetVel(StepMotor_t *motor) {
  * Проверяет возможность достижения скорости аппаратно,
  * затем сохраняет целевую скорость для планировщика.
  */
-void StepMotor_SetVel(StepMotor_t *motor, int32_t vel) {
+void Stepper_SetVel(Stepper_t *motor, int32_t vel) {
     if (motor == NULL)
         return;
 
@@ -117,7 +118,7 @@ void StepMotor_SetVel(StepMotor_t *motor, int32_t vel) {
  * Мгновенная остановка - обнуляет все скорости
  * и немедленно отключает генерацию импульсов.
  */
-void StepMotor_Stop(StepMotor_t *motor) {
+void Stepper_Stop(Stepper_t *motor) {
     if (motor != NULL) {
         motor->tar_vel = 0;
         motor->cur_vel = 0;
@@ -135,12 +136,12 @@ void StepMotor_Stop(StepMotor_t *motor) {
  *
  * @note Должна вызываться в основном цикле с частотой >= 1/таймаут_планировщика
  */
-void StepMotor_TaskPlanner(StepMotor_t *motor) {
+void Stepper_TaskPlanner(Stepper_t *motor) {
     if (motor == NULL)
         return;
 
     /* Получаем время обновления планировщика */
-    uint32_t timeout = Planner_Itf.GetTimeAcc(&motor->pl);
+    uint32_t timeout = Planner_GetTimeAcc(&motor->pl);
 
     /* Расчёт времени, прошедшего с последнего обновления */
     uint32_t elapsed, time = motor->dr.GetTick();
@@ -153,7 +154,7 @@ void StepMotor_TaskPlanner(StepMotor_t *motor) {
     /* Если планировщик активен (в пределах таймаута) */
     if (timeout >= elapsed) {
         /* Расчёт новой скорости по времени */
-        int32_t vel = Planner_Itf.GetVel(&motor->pl, (float)elapsed);
+        int32_t vel = Planner_GetVel(&motor->pl, (float)elapsed);
         /* Обновление драйвера только при изменении скорости */
         if (vel != motor->cur_vel) {
             MotorDriver_Itf.SetVel(&motor->dr, vel);
@@ -164,10 +165,10 @@ void StepMotor_TaskPlanner(StepMotor_t *motor) {
     else if (motor->tar_vel != motor->cur_vel) {
         /* При смене направления через ноль - перепланирование от нуля */
         if ((motor->tar_vel ^ motor->cur_vel) < 0 && motor->cur_vel != 0 && motor->tar_vel != 0)
-            Planner_Itf.SetVel(&motor->pl, motor->cur_vel, 0);
+            Planner_SetVel(&motor->pl, motor->cur_vel, 0);
         else
             /* Плавное изменение от текущей к целевой скорости */
-            Planner_Itf.SetVel(&motor->pl, motor->cur_vel, motor->tar_vel);
+            Planner_SetVel(&motor->pl, motor->cur_vel, motor->tar_vel);
 
         /* Обновление временной метки для нового цикла планирования */
         motor->time = motor->dr.GetTick();
@@ -181,21 +182,21 @@ void StepMotor_TaskPlanner(StepMotor_t *motor) {
  * Передаёт управление драйверу для обработки аппаратного прерывания.
  * Должна вызываться из ISR соответствующего таймера.
  */
-void StepMotor_TIMx_IRQHandler(StepMotor_t *motor) {
+void Stepper_TIMx_IRQHandler(Stepper_t *motor) {
     if (motor != NULL)
         MotorDriver_Itf.TIMx_IRQHandler(&motor->dr);
 }
 
 /** @brief Глобальный экземпляр интерфейса шагового двигателя */
-const StepMotor_Interface StepMotor_Itf = {
-    .Init = StepMotor_Init,
-    .Enable = StepMotor_Enable,
-    .Disable = StepMotor_Disable,
-    .GetAcc = StepMotor_GetAcc,
-    .SetAcc = StepMotor_SetAcc,
-    .GetVel = StepMotor_GetVel,
-    .SetVel = StepMotor_SetVel,
-    .Stop = StepMotor_Stop,
-    .TaskPlanner = StepMotor_TaskPlanner,
-    .TIMx_IRQHandler = StepMotor_TIMx_IRQHandler,
+const Stepper_Interface Stepper_Itf = {
+    .Init            = Stepper_Init,
+    .Enable          = Stepper_Enable,
+    .Disable         = Stepper_Disable,
+    .GetAcc          = Stepper_GetAcc,
+    .SetAcc          = Stepper_SetAcc,
+    .GetVel          = Stepper_GetVel,
+    .SetVel          = Stepper_SetVel,
+    .Stop            = Stepper_Stop,
+    .TaskPlanner     = Stepper_TaskPlanner,
+    .TIMx_IRQHandler = Stepper_TIMx_IRQHandler,
 };

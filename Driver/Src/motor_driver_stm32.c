@@ -75,9 +75,8 @@ void MotorDriver_Init(MotorDriver_Type *dr) {
     if (dr->htim.Instance == NULL)
         return;
 
-    if (!IS_NVIC_DEVICE_IRQ(dr->htim.IRQn) || dr->htim.Clock < 2 * MIN_CLK_APB) {
+    if (!IS_NVIC_DEVICE_IRQ(dr->htim.IRQn) || dr->htim.Clock < 2 * MIN_CLK_APB)
         return;
-    }
 
     if (dr->dir.Port == NULL && dr->en.Port == NULL)
         return;
