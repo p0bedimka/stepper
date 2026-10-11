@@ -1,7 +1,7 @@
 //
 // Created by Pobed on 27.07.2026.
 //
-#include "motor_driver_stm32.h"
+#include "stepper_driver_stm32.h"
 
 #include <stdlib.h>
 
@@ -53,7 +53,7 @@
  * Формула: ARR = (Clock / (freq * (PSC + 1))) - 1
  * При PSC = 0: ARR = Clock / freq - 1
  */
-static uint32_t Stepper_CalcPeriod(const MotorDriver_Type *stp, uint32_t freq) {
+static uint32_t StepperDriver_CalcPeriod(const StepperDriverSTM32_t *stp, uint32_t freq) {
     if (freq == 0) return 0;
     return stp->htim.Clock / (freq * (stp->htim.Instance->PSC + 1)) - 1;
 }
@@ -68,46 +68,47 @@ static uint32_t Stepper_CalcPeriod(const MotorDriver_Type *stp, uint32_t freq) {
  * Настраивает таймер в режим ШИМ с периодом 1000 Гц по умолчанию.
  * Включает прерывания по обновлению таймера.
  */
-void MotorDriver_Init(MotorDriver_Type *dr) {
-    if (dr == NULL)
+void StepperDriverSTM32_Init(StepperDriver_t *dr) {
+    if (dr == NULL) return;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL)
         return;
 
-    if (dr->htim.Instance == NULL)
+    if (!IS_NVIC_DEVICE_IRQ(stp_dr->htim.IRQn) || stp_dr->htim.Clock < 2 * MIN_CLK_APB)
         return;
 
-    if (!IS_NVIC_DEVICE_IRQ(dr->htim.IRQn) || dr->htim.Clock < 2 * MIN_CLK_APB)
+    if (stp_dr->dir.Port == NULL && stp_dr->en.Port == NULL)
         return;
 
-    if (dr->dir.Port == NULL && dr->en.Port == NULL)
-        return;
-
-    if (dr->GetTick == NULL)
+    if (stp_dr->GetTick == NULL)
         return;
 
     /* Установка разрядности по умолчанию (16 бит) если указано неверное значение */
-    if (dr->htim.Bit != TIM_16_BIT || dr->htim.Bit != TIM_32_BIT)
-        dr->htim.Bit = TIM_16_BIT;
+    if (stp_dr->htim.Bit != TIM_16_BIT || stp_dr->htim.Bit != TIM_32_BIT)
+        stp_dr->htim.Bit = TIM_16_BIT;
 
     /* Остановка таймера на время конфигурации */
-    dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;
+    stp_dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;
 
     /* Настройка периода ~1000 Гц */
-    dr->htim.Instance->PSC = 0;
-    dr->htim.Instance->ARR = Stepper_CalcPeriod(dr, 1000);
+    stp_dr->htim.Instance->PSC = 0;
+    stp_dr->htim.Instance->ARR = StepperDriver_CalcPeriod(stp_dr, 1000);
 
     /* Включение автоматической предварительной загрузки */
-    dr->htim.Instance->CR1 |= TIM_CR1_ARPE;
+    stp_dr->htim.Instance->CR1 |= TIM_CR1_ARPE;
 
     /* Настройка режима ШИМ */
-    TIM_SET_MODE_PWM(&dr->htim);
-    TIM_ENABLE_OCxPRELOAD(&dr->htim);
+    TIM_SET_MODE_PWM(&stp_dr->htim);
+    TIM_ENABLE_OCxPRELOAD(&stp_dr->htim);
 
     /* Начальное значение скважности = 0 (нет импульсов) */
-    TIM_SET_COMPARE(&dr->htim, 0);
+    TIM_SET_COMPARE(&stp_dr->htim, 0);
 
     /* Разрешение прерывания по обновлению */
-    dr->htim.Instance->DIER |= TIM_DIER_UIE;
-    dr->htim.Instance->SR &= ~TIM_SR_UIF;
+    stp_dr->htim.Instance->DIER |= TIM_DIER_UIE;
+    stp_dr->htim.Instance->SR &= ~TIM_SR_UIF;
 }
 
 /**
@@ -117,14 +118,18 @@ void MotorDriver_Init(MotorDriver_Type *dr) {
  * Запускает таймер, активирует выход сравнения,
  * включает вывод разрешения и разрешает прерывания.
  */
-void MotorDriver_Enable(MotorDriver_Type *dr) {
-    if (dr == NULL || dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(dr->htim.IRQn))
+void StepperDriverSTM32_Enable(StepperDriver_t *dr) {
+    if (dr == NULL) return;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(stp_dr->htim.IRQn))
         return;
 
-    dr->htim.Instance->CR1 |= TIM_CR1_CEN;      /* Запуск таймера */
-    TIM_ENABLE_COMPARE(&dr->htim);              /* Включение выхода ШИМ */
-    dr->en.Port->BSRR = dr->en.Pin;             /* Активация Enable (HIGH) */
-    NVIC_EnableIRQ(dr->htim.IRQn);              /* Разрешение прерываний */
+    stp_dr->htim.Instance->CR1 |= TIM_CR1_CEN;      /* Запуск таймера */
+    TIM_ENABLE_COMPARE(&stp_dr->htim);              /* Включение выхода ШИМ */
+    stp_dr->en.Port->BSRR = stp_dr->en.Pin;         /* Активация Enable (HIGH) */
+    NVIC_EnableIRQ(stp_dr->htim.IRQn);              /* Разрешение прерываний */
 }
 
 /**
@@ -134,14 +139,18 @@ void MotorDriver_Enable(MotorDriver_Type *dr) {
  * Останавливает таймер, отключает выход сравнения,
  * деактивирует вывод разрешения и запрещает прерывания.
  */
-void MotorDriver_Disable(MotorDriver_Type *dr) {
-    if (dr == NULL || dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(dr->htim.IRQn))
+void StepperDriverSTM32_Disable(StepperDriver_t *dr) {
+    if (dr == NULL) return;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(stp_dr->htim.IRQn))
         return;
 
-    dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;     /* Остановка таймера */
-    TIM_DISABLE_COMPARE(&dr->htim);             /* Отключение выхода ШИМ */
-    dr->en.Port->BSRR = dr->en.Pin << 16;       /* Деактивация Enable (LOW) */
-    NVIC_DisableIRQ(dr->htim.IRQn);             /* Запрет прерываний */
+    stp_dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;     /* Остановка таймера */
+    TIM_DISABLE_COMPARE(&stp_dr->htim);             /* Отключение выхода ШИМ */
+    stp_dr->en.Port->BSRR = stp_dr->en.Pin << 16;   /* Деактивация Enable (LOW) */
+    NVIC_DisableIRQ(stp_dr->htim.IRQn);             /* Запрет прерываний */
 }
 
 /**
@@ -153,15 +162,19 @@ void MotorDriver_Disable(MotorDriver_Type *dr) {
  * Расчитывает период и проверяет, не превышает ли он максимальное значение
  * для данной разрядности таймера.
  */
-bool MotorDriver_СanSetVel(MotorDriver_Type *dr, int32_t vel) {
-    if (dr == NULL || dr->htim.Instance == NULL)
+bool StepperDriverSTM32_CanSetVel(StepperDriver_t *dr, int32_t vel) {
+    if (dr == NULL) return false;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL)
         return false;
 
     if (vel == 0)
         return true;
 
-    uint32_t period = Stepper_CalcPeriod(dr, abs(vel));
-    return period <= ((1ULL << dr->htim.Bit) - 1);
+    uint32_t period = StepperDriver_CalcPeriod(stp_dr, abs(vel));
+    return period <= ((1ULL << stp_dr->htim.Bit) - 1);
 }
 
 /**
@@ -172,43 +185,44 @@ bool MotorDriver_СanSetVel(MotorDriver_Type *dr, int32_t vel) {
  *
  * @note Выполняется с отключением прерываний для атомарного обновления.
  */
-bool MotorDriver_SetVel(MotorDriver_Type *dr, int32_t vel) {
-    if (dr == NULL)
+bool StepperDriverSTM32_SetVel(StepperDriver_t *dr, int32_t vel) {
+    if (dr == NULL) return false;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(stp_dr->htim.IRQn))
         return false;
 
-    if (dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(dr->htim.IRQn))
-        return false;
-
-    if (dr->dir.Port == NULL)
+    if (stp_dr->dir.Port == NULL)
         return false;
 
     uint32_t period = 0, pulse = 0;
 
     /* Расчёт параметров для ненулевой скорости */
     if (vel != 0) {
-        period = Stepper_CalcPeriod(dr, abs(vel));
-        if (period <= ((1ULL << dr->htim.Bit) - 1))
+        period = StepperDriver_CalcPeriod(stp_dr, abs(vel));
+        if (period <= ((1ULL << stp_dr->htim.Bit) - 1))
             pulse = (period + 1) / 2;  /* Скважность 50% */
         else
             return false;
     }
 
     /* Атомарное обновление с защитой от прерываний */
-    NVIC_DisableIRQ(dr->htim.IRQn);
+    NVIC_DisableIRQ(stp_dr->htim.IRQn);
 
     if (vel != 0)
-        dr->htim.Instance->ARR = period;
+        stp_dr->htim.Instance->ARR = period;
 
-    TIM_SET_COMPARE(&dr->htim, pulse);
+    TIM_SET_COMPARE(&stp_dr->htim, pulse);
 
     /* Установка направления: положительная скорость - один уровень,
      * отрицательная - противоположный */
     if (vel > 0)
-        dr->dir.State = dr->dir.Pin;
+        stp_dr->dir.State = stp_dr->dir.Pin;
     else
-        dr->dir.State = dr->dir.Pin << 16;
+        stp_dr->dir.State = stp_dr->dir.Pin << 16;
 
-    NVIC_EnableIRQ(dr->htim.IRQn);
+    NVIC_EnableIRQ(stp_dr->htim.IRQn);
 
     return true;
 }
@@ -221,16 +235,29 @@ bool MotorDriver_SetVel(MotorDriver_Type *dr, int32_t vel) {
  * устанавливает состояние вывода направления.
  * Это обеспечивает синхронизацию смены направления с импульсами ШИМ.
  */
-void MotorDriver_TIMx_IRQHandler(MotorDriver_Type *dr) {
-    if (dr == NULL || dr->htim.Instance == NULL)
+void StepperDriverSTM32_TIMx_IRQHandler(StepperDriver_t *dr) {
+    if (dr == NULL) return;
+
+    StepperDriverSTM32_t* stp_dr = (StepperDriverSTM32_t *)dr;
+
+    if (stp_dr->htim.Instance == NULL)
         return;
 
     /* Проверка флага прерывания по обновлению */
-    if (dr->htim.Instance->SR & TIM_SR_UIF) {
-        dr->htim.Instance->SR &= ~TIM_SR_UIF;  /* Сброс флага */
+    if (stp_dr->htim.Instance->SR & TIM_SR_UIF) {
+        stp_dr->htim.Instance->SR &= ~TIM_SR_UIF;  /* Сброс флага */
 
         /* Обновление состояния направления в момент прерывания */
-        if (dr->dir.Port != NULL)
-            dr->dir.Port->BSRR = dr->dir.State;
+        if (stp_dr->dir.Port != NULL)
+            stp_dr->dir.Port->BSRR = stp_dr->dir.State;
     }
 }
+
+const StepperDriver_Interface StepperDriver_Itf = {
+    .Init = StepperDriverSTM32_Init,
+    .Enable = StepperDriverSTM32_Enable,
+    .Disable = StepperDriverSTM32_Disable,
+    .CanSetVel = StepperDriverSTM32_CanSetVel,
+    .SetVel = StepperDriverSTM32_SetVel,
+    .TIMx_IRQHandler = StepperDriverSTM32_TIMx_IRQHandler,
+};

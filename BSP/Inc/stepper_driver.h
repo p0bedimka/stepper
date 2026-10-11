@@ -2,15 +2,14 @@
 // Created by Pobed on 27.07.2026.
 //
 
-#ifndef MOTOR_DRIVER_H
-#define MOTOR_DRIVER_H
+#ifndef STEPPER_DRIVER_H
+#define STEPPER_DRIVER_H
 
+#include <stdint.h>
 #include <stdbool.h>
 
-#include "motor_driver_stm32.h"
-
 /** @brief Тип драйвера двигателя (алиас для платформо-зависимой структуры) */
-typedef MotorDriver_Type MotorDriver_t;
+typedef struct StepperDriver_t StepperDriver_t;
 
 /**
  * @brief Интерфейс драйвера шагового двигателя
@@ -26,7 +25,7 @@ typedef struct {
      * Настраивает таймер в режим ШИМ, конфигурирует GPIO для направления и разрешения.
      * Проверяет корректность параметров конфигурации.
      */
-    void (*Init)(MotorDriver_t *stp);
+    void (*Init)(StepperDriver_t *stp);
 
     /**
      * @brief Включение драйвера
@@ -34,7 +33,7 @@ typedef struct {
      *
      * Запускает таймер, включает выход сравнения, активирует вывод разрешения.
      */
-    void (*Enable)(MotorDriver_t *stp);
+    void (*Enable)(StepperDriver_t *stp);
 
     /**
      * @brief Отключение драйвера
@@ -42,7 +41,7 @@ typedef struct {
      *
      * Останавливает таймер, отключает выход сравнения, деактивирует вывод разрешения.
      */
-    void (*Disable)(MotorDriver_t *stp);
+    void (*Disable)(StepperDriver_t *stp);
 
     /**
      * @brief Проверка возможности установки скорости
@@ -53,7 +52,7 @@ typedef struct {
      * Проверяет, может ли таймер сгенерировать требуемую частоту импульсов
      * с учётом разрядности таймера и тактовой частоты.
      */
-    bool (*СanSetVel)(MotorDriver_t *stp, int32_t vel);
+    bool (*CanSetVel)(StepperDriver_t *stp, int32_t vel);
 
     /**
      * @brief Установка скорости вращения
@@ -64,7 +63,7 @@ typedef struct {
      * Устанавливает период и скважность ШИМ, а также направление вращения.
      * Обновление выполняется с защитой от прерываний.
      */
-    bool (*SetVel)(MotorDriver_t *stp, int32_t vel);
+    bool (*SetVel)(StepperDriver_t *stp, int32_t vel);
 
     /**
      * @brief Обработчик прерывания таймера
@@ -73,10 +72,50 @@ typedef struct {
      * Обновляет состояние вывода направления в момент прерывания
      * для синхронизации с импульсами ШИМ.
      */
-    void (*TIMx_IRQHandler)(MotorDriver_t *stp);
-} MotorDriver_Interface;
+    void (*TIMx_IRQHandler)(StepperDriver_t *stp);
 
-/** @brief Глобальный экземпляр интерфейса драйвера */
-extern const MotorDriver_Interface MotorDriver_Itf;
+    /**
+     * @brief
+     */
+    uint32_t (*GetTick)(StepperDriver_t *stp);
+} StepperDriver_Interface;
+
+struct StepperDriver_t {
+    const StepperDriver_Interface *itf;
+};
+
+static inline void StepperDriver_Init(StepperDriver_t *dr) {
+    if (dr && dr->itf) dr->itf->Init(dr);
+}
+
+static inline void StepperDriver_Enable(StepperDriver_t *dr) {
+    if (dr && dr->itf) dr->itf->Enable(dr);
+}
+
+static inline void StepperDriver_Disable(StepperDriver_t *dr) {
+    if (dr && dr->itf) dr->itf->Disable(dr);
+}
+
+static inline bool StepperDriver_CanSetVel(StepperDriver_t *dr, int32_t vel) {
+    if (dr && dr->itf)
+        return dr->itf->CanSetVel(dr, vel);
+    return false;
+}
+
+static inline bool StepperDriver_SetVel(StepperDriver_t *dr, int32_t vel) {
+    if (dr && dr->itf)
+        return dr->itf->SetVel(dr, vel);
+    return false;
+}
+
+static inline void StepperDriver_TIMx_IRQHandler(StepperDriver_t *std_dr) {
+    if (std_dr && std_dr->itf) std_dr->itf->TIMx_IRQHandler(std_dr);
+}
+
+static inline uint32_t StepperDriver_GetTick(StepperDriver_t *dr) {
+    if (dr && dr->itf)
+        return dr->itf->GetTick(dr);
+    return 0;
+}
 
 #endif

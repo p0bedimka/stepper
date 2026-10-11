@@ -9,7 +9,7 @@
 #include <string.h>
 #include <math.h>
 
-void Linear_Init(Planner_t *pl) {
+void Linear_Init(StepperPlanner_t *pl) {
     if (pl == NULL) return;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -21,7 +21,7 @@ void Linear_Init(Planner_t *pl) {
         lin->v_jump = 1;
 }
 
-uint32_t Linear_GetAcc(Planner_t *pl) {
+uint32_t Linear_GetAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -29,7 +29,7 @@ uint32_t Linear_GetAcc(Planner_t *pl) {
     return lin->a;
 }
 
-int32_t Linear_GetInitVel(Planner_t *pl) {
+int32_t Linear_GetInitVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -37,7 +37,7 @@ int32_t Linear_GetInitVel(Planner_t *pl) {
     return lin->v0;
 }
 
-int32_t Linear_GetTargVel(Planner_t *pl) {
+int32_t Linear_GetTargVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -45,7 +45,7 @@ int32_t Linear_GetTargVel(Planner_t *pl) {
     return lin->v1;
 }
 
-void Linear_SetAcc(Planner_t *pl, const uint32_t a) {
+void Linear_SetAcc(StepperPlanner_t *pl, const uint32_t a) {
     if (pl == NULL) return;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -53,7 +53,7 @@ void Linear_SetAcc(Planner_t *pl, const uint32_t a) {
     lin->a = a;
 }
 
-void Linear_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
+void Linear_SetVel(StepperPlanner_t *pl, int32_t v0, int32_t v1) {
     if (pl == NULL) return;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -74,7 +74,7 @@ void Linear_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
         lin->slope = 0.0f;
 }
 
-int32_t Linear_GetVel(Planner_t *pl, float dt) {
+int32_t Linear_GetVel(StepperPlanner_t *pl, float dt) {
     if (pl == NULL) return 0;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -96,7 +96,7 @@ int32_t Linear_GetVel(Planner_t *pl, float dt) {
     return v;
 }
 
-uint32_t Linear_GetTimeAcc(Planner_t *pl) {
+uint32_t Linear_GetTimeAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Linear_t *lin = (Linear_t *)pl;
@@ -104,7 +104,7 @@ uint32_t Linear_GetTimeAcc(Planner_t *pl) {
     return (uint32_t)lin->t;
 }
 
-const Planner_Interface Linear_Itf = {
+const StepperPlanner_Interface Linear_Itf = {
     .Init       = Linear_Init,
     .GetAcc     = Linear_GetAcc,
     .SetAcc     = Linear_SetAcc,

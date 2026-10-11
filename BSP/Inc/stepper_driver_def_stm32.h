@@ -2,11 +2,11 @@
 // Created by Pobed on 01.08.2026.
 //
 
-#ifndef STEPPER_STM32F4_DEF_H
-#define STEPPER_STM32F4_DEF_H
+#ifndef STEPPER_DRIVER_DEF_STM32F4_H
+#define STEPPER_DRIVER_DEF_STM32F4_H
 
 /**
- * @file motor_driver_def_stm32.h
+ * @file stepper_driver_def_stm32.h
  * @brief Определения констант для драйвера шагового двигателя на STM32
  */
 

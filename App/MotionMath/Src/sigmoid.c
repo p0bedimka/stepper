@@ -1,7 +1,7 @@
 //
 // Created by pobedimka on 02.07.2026.
 //
-#include "s-curve.h"
+#include "sigmoid.h"
 
 #include <stdlib.h>
 #include <string.h>
@@ -14,17 +14,23 @@
  * Проверяет и корректирует параметры:
  * - Ускорение не менее 1
  * - Минимальная скорость не менее 1
+ * - Коэффициент прыжка не менее 1
  */
-void Scurve_Init(Planner_t *pl) {
+void Sigmoid_Init(StepperPlanner_t *pl) {
     if (pl == NULL) return;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    if (scurve->a < 1)
-        scurve->a = 1;
+    if (sig->a < 1)
+        sig->a = 1;
 
-    if (scurve->v_jump < 1)
-        scurve->v_jump = 1;
+    if (sig->v_jump < 1)
+        sig->v_jump = 1;
+
+    if (sig->k_jump < 1)
+        sig->k_jump = 1;
+
+    sig->eps = 0.01f;
 }
 
 /**
@@ -32,12 +38,12 @@ void Scurve_Init(Planner_t *pl) {
  * @param pl Указатель на структуру сигмоиды
  * @return Ускорение (импульсов/сек²)
  */
-uint32_t Scurve_GetAcc(Planner_t *pl) {
+uint32_t Sigmoid_GetAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    return scurve->a;
+    return sig->a;
 }
 
 /**
@@ -45,12 +51,12 @@ uint32_t Scurve_GetAcc(Planner_t *pl) {
  * @param pl Указатель на структуру сигмоиды
  * @param a Ускорение (импульсов/сек²)
  */
-void Scurve_SetAcc(Planner_t *pl, const uint32_t a) {
+void Sigmoid_SetAcc(StepperPlanner_t *pl, const uint32_t a) {
     if (pl == NULL) return;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    scurve->a = a;
+    sig->a = a;
 }
 
 /**
@@ -58,12 +64,12 @@ void Scurve_SetAcc(Planner_t *pl, const uint32_t a) {
  * @param pl Указатель на структуру сигмоиды
  * @return Начальная скорость (импульсов/сек)
  */
-int32_t Scurve_GetInitVel(Planner_t *pl) {
+int32_t Sigmoid_GetInitVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    return scurve->v0;
+    return sig->v0;
 }
 
 /**
@@ -71,12 +77,12 @@ int32_t Scurve_GetInitVel(Planner_t *pl) {
  * @param pl Указатель на структуру сигмоиды
  * @return Целевая скорость (импульсов/сек)
  */
-int32_t Scurve_GetTargVel(Planner_t *pl) {
+int32_t Sigmoid_GetTargVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    return scurve->v1;
+    return sig->v1;
 }
 
 /**
@@ -92,20 +98,28 @@ int32_t Scurve_GetTargVel(Planner_t *pl) {
  * 4. Рассчитывает k = ln(|dv|) / t0 (крутизна сигмоиды)
  * 5. Вычисляет t_jump - время достижения минимальной скорости
  */
-void Scurve_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
+void Sigmoid_SetVel(StepperPlanner_t *pl, int32_t v0, int32_t v1) {
     if (pl == NULL) return;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
     /* Сохраняем начальную скорость */
-    scurve->v0 = v0;
-    scurve->v1 = v1;
+    sig->v0 = v0;
+    sig->v1 = v1;
 
     /* Вычисляем разность скоростей */
-    scurve->dv = scurve->v1 - scurve->v0;
+    sig->dv = sig->v1 - sig->v0;
 
-    /* Время разгона до v1 */
-    scurve->t = 1000.f * (float)abs(scurve->dv) / (float)scurve->a;
+    /* t0 = время достижения середины перехода (центр сигмоиды)
+     * 500 = 1000 мс / 2 (половина времени разгона при линейном ускорении) */
+    sig->t0 = 500.f * (float)abs(sig->dv) / (float)sig->a;
+
+    /* k = коэффициент крутизны сигмоиды */
+    sig->k = -logf(sig->eps / (float)abs(sig->dv)) / sig->t0;
+
+    /* Находим время t_jump / k_jump, когда |v(t)| достигает v_jump */
+    float ratio = fabsf((float)sig->dv) / (float)sig->v_jump;
+    sig->t_jump = (sig->t0 - logf(ratio - 1.f) / sig->k) / sig->k_jump;
 }
 
 /**
@@ -122,30 +136,25 @@ void Scurve_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
  * - При достижении минимальной скорости удерживает её
  * - Возвращает 0, если скорость ниже порога в начале/конце движения
  */
-int32_t Scurve_GetVel(Planner_t *pl, float dt) {
+int32_t Sigmoid_GetVel(StepperPlanner_t *pl, float dt) {
     if (pl == NULL) return 0;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    int32_t v;
+    /* Вычисляем аргумент экспоненты сигмоиды */
+    float arg = sig->k * (dt - sig->t0);
 
-    /* Ограничиваем время диапазоном [0, T], так как полином за этими
-       пределами уходит в бесконечность (в отличие от сигмоиды) */
-    if (scurve->t < 0.001f || dt <= 0.0f)
-        v = scurve->v0;
-    else if (dt >= scurve->t)
-        v = scurve->v1;
-    else {
-        /* Нормализованное время tau = t / T (от 0 до 1) */
-        const float tau = dt / scurve->t;
+    /* Расчёт скорости по формуле сигмоиды: v(t) = v0 + dv / (1 + exp(-k*(t - t0))) */
+    int32_t v = sig->v0 + (int32_t)roundf((float)sig->dv / (1.f + expf(-arg)));
 
-        /* Формула скорости */
-        v = scurve->v0 + (int32_t)roundf((float)scurve->dv * tau * tau * (3.0f - 2.0f * tau));
-    }
-
-    /* Устраняем нежелательную скорость (защита от микро-шагов и люфтов) */
-    if (abs(v) < scurve->v_jump)
+    /* Устраняем не желательную скорость*/
+    if (abs(v) < sig->v_jump) {
+        if ((abs(sig->v0) < sig->v_jump && sig->t_jump < dt) ||
+            (abs(sig->v1) < sig->v_jump && sig->t_jump < ((2 * sig->t0) - dt)))
+            v = (v >= 0) ? sig->v_jump : -sig->v_jump;
+        else
             v = 0;
+    }
 
     return v;
 }
@@ -158,21 +167,21 @@ int32_t Scurve_GetVel(Planner_t *pl, float dt) {
  * Возвращает полное время переходного процесса:
  * TimeAcc = 2 * t0
  */
-uint32_t Scurve_GetTimeAcc(Planner_t *pl) {
+uint32_t Sigmoid_GetTimeAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
-    Scurve_t *scurve = (Scurve_t *)pl;
+    Sigmoid_t *sig = (Sigmoid_t *)pl;
 
-    return (uint32_t)scurve->t;
+    return (uint32_t)(sig->t0 * 2.f);
 }
 
-const Planner_Interface Scurve_Itf = {
-    .Init       = Scurve_Init,
-    .GetAcc     = Scurve_GetAcc,
-    .SetAcc     = Scurve_SetAcc,
-    .GetInitVel = Scurve_GetInitVel,
-    .GetTargVel = Scurve_GetTargVel,
-    .SetVel     = Scurve_SetVel,
-    .GetVel     = Scurve_GetVel,
-    .GetTimeAcc = Scurve_GetTimeAcc,
+const StepperPlanner_Interface Sigmoid_Itf = {
+    .Init       = Sigmoid_Init,
+    .GetAcc     = Sigmoid_GetAcc,
+    .SetAcc     = Sigmoid_SetAcc,
+    .GetInitVel = Sigmoid_GetInitVel,
+    .GetTargVel = Sigmoid_GetTargVel,
+    .SetVel     = Sigmoid_SetVel,
+    .GetVel     = Sigmoid_GetVel,
+    .GetTimeAcc = Sigmoid_GetTimeAcc,
 };

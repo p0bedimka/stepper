@@ -2,13 +2,13 @@
 // Created by Pobed on 27.07.2026.
 //
 
-#ifndef PLANNER_H
-#define PLANNER_H
+#ifndef STEPPER_PLANNER_H
+#define STEPPER_PLANNER_H
 
 #include <stdint.h>
 
 /**
- * @file planner.h
+ * @file stepper_planner.h
  * @brief Интерфейс планировщика движения
  *
  * Определяет универсальный интерфейс для планировщиков движения.
@@ -30,7 +30,7 @@
  * Указатель на конкретную структуру планировщика.
  * Позволяет использовать различные реализации через единый интерфейс.
  */
-typedef struct Planner_t Planner_t;
+typedef struct StepperPlanner_t StepperPlanner_t;
 
 /**
  * @brief Интерфейс планировщика движения
@@ -47,7 +47,7 @@ typedef struct {
      * Должна проверять корректность параметров и устанавливать
      * значения по умолчанию при необходимости.
      */
-    void (*Init)(Planner_t *pl);
+    void (*Init)(StepperPlanner_t *pl);
 
     /**
      * @brief Получение текущего ускорения
@@ -57,7 +57,7 @@ typedef struct {
      * Возвращает значение ускорения, используемое планировщиком
      * для расчёта профиля скорости.
      */
-    uint32_t (*GetAcc)(Planner_t *p);
+    uint32_t (*GetAcc)(StepperPlanner_t *p);
 
     /**
      * @brief Установка ускорения
@@ -67,7 +67,7 @@ typedef struct {
      * Устанавливает ускорение для расчёта профиля движения.
      * Влияет на крутизну изменения скорости.
      */
-    void (*SetAcc)(Planner_t *pl, uint32_t a);
+    void (*SetAcc)(StepperPlanner_t *pl, uint32_t a);
 
     /**
      * @brief Получение начальной скорости
@@ -76,7 +76,7 @@ typedef struct {
      *
      * Возвращает скорость, с которой начинается движение.
      */
-    int32_t (*GetInitVel)(Planner_t *pl);
+    int32_t (*GetInitVel)(StepperPlanner_t *pl);
 
     /**
      * @brief Получение целевой скорости
@@ -85,7 +85,7 @@ typedef struct {
      *
      * Возвращает скорость, к которой стремится движение.
      */
-    int32_t (*GetTargVel)(Planner_t *pl);
+    int32_t (*GetTargVel)(StepperPlanner_t *pl);
 
     /**
      * @brief Установка параметров движения
@@ -99,7 +99,7 @@ typedef struct {
      * @note Разные реализации могут по-разному интерпретировать
      * переход в зависимости от алгоритма планирования.
      */
-    void (*SetVel)(Planner_t *pl, int32_t v0, int32_t v1);
+    void (*SetVel)(StepperPlanner_t *pl, int32_t v0, int32_t v1);
 
     /**
      * @brief Расчёт скорости в заданный момент времени
@@ -113,7 +113,7 @@ typedef struct {
      * @note dt должно монотонно возрастать между вызовами
      * для корректного воспроизведения профиля.
      */
-    int32_t (*GetVel)(Planner_t *pl, float dt);
+    int32_t (*GetVel)(StepperPlanner_t *pl, float dt);
 
     /**
      * @brief Получение времени переходного процесса
@@ -124,57 +124,57 @@ typedef struct {
      * от начальной скорости к целевой.
      * Используется для определения момента, когда движение завершено.
      */
-    uint32_t (*GetTimeAcc)(Planner_t *pl);
-} Planner_Interface;
+    uint32_t (*GetTimeAcc)(StepperPlanner_t *pl);
+} StepperPlanner_Interface;
 
 /**
  * @brief Базовая структура планировщика
  * Содержит только указатель на vtable.
  * Любая конкретная реализация должна встраивать её ПЕРВЫМ полем.
  */
-struct Planner_t {
-    const Planner_Interface *itf;
+struct StepperPlanner_t {
+    const StepperPlanner_Interface *itf;
 };
 
 /* ---------- Удобные обёртки-функции ---------- */
 
-static inline void Planner_Init(Planner_t *pl) {
+static inline void StepperPlanner_Init(StepperPlanner_t *pl) {
     if (pl && pl->itf) pl->itf->Init(pl);
 }
 
-static inline uint32_t Planner_GetAcc(Planner_t *pl) {
+static inline uint32_t StepperPlanner_GetAcc(StepperPlanner_t *pl) {
     if (pl && pl->itf)
         return pl->itf->GetAcc(pl);
     return 0;
 }
 
-static inline void Planner_SetAcc(Planner_t *pl, uint32_t a) {
+static inline void StepperPlanner_SetAcc(StepperPlanner_t *pl, uint32_t a) {
     if (pl && pl->itf) pl->itf->SetAcc(pl, a);
 }
 
-static inline int32_t Planner_GetInitVel(Planner_t *pl) {
+static inline int32_t StepperPlanner_GetInitVel(StepperPlanner_t *pl) {
     if (pl && pl->itf)
         return pl->itf->GetInitVel(pl);
     return 0;
 }
 
-static inline int32_t Planner_GetTargVel(Planner_t *pl) {
+static inline int32_t StepperPlanner_GetTargVel(StepperPlanner_t *pl) {
     if (pl && pl->itf)
         return pl->itf->GetTargVel(pl);
     return 0;
 }
 
-static inline void Planner_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
+static inline void StepperPlanner_SetVel(StepperPlanner_t *pl, int32_t v0, int32_t v1) {
     if (pl && pl->itf) pl->itf->SetVel(pl, v0, v1);
 }
 
-static inline int32_t Planner_GetVel(Planner_t *pl, float dt) {
+static inline int32_t StepperPlanner_GetVel(StepperPlanner_t *pl, float dt) {
     if (pl && pl->itf)
         return pl->itf->GetVel(pl, dt);
     return 0;
 }
 
-static inline uint32_t Planner_GetTimeAcc(Planner_t *pl) {
+static inline uint32_t StepperPlanner_GetTimeAcc(StepperPlanner_t *pl) {
     if (pl && pl->itf)
         return pl->itf->GetTimeAcc(pl);
     return 0;

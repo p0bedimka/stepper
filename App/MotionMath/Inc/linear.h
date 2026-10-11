@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "planner.h"
+#include "stepper_planner.h"
 
 /**
 @brief Структура линейной кривой для планирования движения
@@ -26,6 +26,6 @@ typedef struct {
     int32_t dv;        /**< Разность скоростей (v1 - v0) */
 } Linear_t;
 
-extern const Planner_Interface Linear_Itf;
+extern const StepperPlanner_Interface Linear_Itf;
 
 #endif

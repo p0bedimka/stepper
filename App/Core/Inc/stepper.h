@@ -7,8 +7,8 @@
 
 #include <stdint.h>
 
-#include "motor_driver.h"
-#include "planner.h"
+#include "stepper_driver.h"
+#include "stepper_planner.h"
 
 #include "sigmoid.h"
 #include "s-curve.h"
@@ -22,8 +22,8 @@
  * Содержит информацию о текущем и целевом состоянии двигателя.
  */
 typedef struct {
-    MotorDriver_t dr;        /**< Экземпляр драйвера двигателя (таймер + GPIO) */
-    Planner_t pl;            /**< Экземпляр планировщика движения (расчёт ускорений) */
+    StepperDriver_t dr;        /**< Экземпляр драйвера двигателя (таймер + GPIO) */
+    StepperPlanner_t pl;            /**< Экземпляр планировщика движения (расчёт ускорений) */
 
     volatile int32_t tar_vel; /**< Целевая скорость (импульсов/сек). Знак определяет направление */
     volatile int32_t cur_vel; /**< Текущая фактическая скорость (импульсов/сек) */
@@ -41,7 +41,7 @@ typedef struct {
      * @brief Инициализация двигателя
      * @param motor Указатель на структуру двигателя
      */
-    void (*Init)(Stepper_t *motor, MotorDriver_t dr, Planner_t pl);
+    void (*Init)(Stepper_t *motor, StepperDriver_t *dr, StepperPlanner_t *pl);
 
     /**
      * @brief Включение двигателя (разрешение ШИМ)

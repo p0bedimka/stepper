@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "planner.h"
+#include "stepper_planner.h"
 
 /**
 @brief Структура экспоненциальной кривой для планирования движения
@@ -15,7 +15,7 @@
 Обеспечивает плавный разгон с максимальным ускорением в начале и его затуханием к концу.
 */
 typedef struct {
-    Planner_t *pl;
+    StepperPlanner_t *pl;
 
     int32_t v0;        /**< Начальная скорость (импульсов/сек) */
     int32_t v1;        /**< Конечная скорость (импульсов/сек) */
@@ -28,6 +28,6 @@ typedef struct {
     int32_t dv;        /**< Разность скоростей (v1 - v0) */
 } Exponential_t;
 
-extern const Planner_Interface Exponential_Itf;
+extern const StepperPlanner_Interface Exponential_Itf;
 
 #endif

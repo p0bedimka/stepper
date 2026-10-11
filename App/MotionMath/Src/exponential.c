@@ -9,7 +9,7 @@
 #include <string.h>
 #include <math.h>
 
-void Exp_Init(Planner_t *pl) {
+void Exp_Init(StepperPlanner_t *pl) {
     if (pl == NULL) return;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -21,7 +21,7 @@ void Exp_Init(Planner_t *pl) {
         exp->v_jump = 1;
 }
 
-uint32_t Exp_GetAcc(Planner_t *pl) {
+uint32_t Exp_GetAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -29,7 +29,7 @@ uint32_t Exp_GetAcc(Planner_t *pl) {
     return exp->a;
 }
 
-int32_t Exp_GetInitVel(Planner_t *pl) {
+int32_t Exp_GetInitVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -37,7 +37,7 @@ int32_t Exp_GetInitVel(Planner_t *pl) {
     return exp->v0;
 }
 
-int32_t Exp_GetTargVel(Planner_t *pl) {
+int32_t Exp_GetTargVel(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -45,7 +45,7 @@ int32_t Exp_GetTargVel(Planner_t *pl) {
     return exp->v1;
 }
 
-void Exp_SetAcc(Planner_t *pl, const uint32_t a) {
+void Exp_SetAcc(StepperPlanner_t *pl, const uint32_t a) {
     if (pl == NULL) return;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -53,7 +53,7 @@ void Exp_SetAcc(Planner_t *pl, const uint32_t a) {
     exp->a = a;
 }
 
-void Exp_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
+void Exp_SetVel(StepperPlanner_t *pl, int32_t v0, int32_t v1) {
     if (pl == NULL) return;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -76,7 +76,7 @@ void Exp_SetVel(Planner_t *pl, int32_t v0, int32_t v1) {
         exp->t = 0.0f;
 }
 
-int32_t Exp_GetVel(Planner_t *pl, float dt) {
+int32_t Exp_GetVel(StepperPlanner_t *pl, float dt) {
     if (pl == NULL) return 0;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -98,7 +98,7 @@ int32_t Exp_GetVel(Planner_t *pl, float dt) {
     return v;
 }
 
-uint32_t Exp_GetTimeAcc(Planner_t *pl) {
+uint32_t Exp_GetTimeAcc(StepperPlanner_t *pl) {
     if (pl == NULL) return 0;
 
     Exponential_t *exp = (Exponential_t *)pl;
@@ -106,7 +106,7 @@ uint32_t Exp_GetTimeAcc(Planner_t *pl) {
     return (uint32_t)exp->t;
 }
 
-const Planner_Interface Exponential_Itf = {
+const StepperPlanner_Interface Exponential_Itf = {
     .Init       = Exp_Init,
     .GetAcc     = Exp_GetAcc,
     .SetAcc     = Exp_SetAcc,
