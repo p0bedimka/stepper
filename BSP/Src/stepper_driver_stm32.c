@@ -250,10 +250,50 @@ void StepperDriverSTM32_TIMx_IRQHandler(StepperDriver_t *dr) {
     }
 }
 
+/**
+ * @brief Получение текущего значения системного таймера (в миллисекундах).
+ *
+ * Функция является прокси-обёрткой над пользовательским callback'ом @c GetTick,
+ * который был передан в структуру StepperDriverSTM32_t при конфигурации драйвера
+ * (обычно это HAL_GetTick() из STM32 HAL).
+ *
+ * Время используется модулем Stepper_t (см. Stepper_TaskPlanner) для расчёта
+ * прошедшего времени @c elapsed с начала текущего переходного процесса планировщика.
+ *
+ * @param dr Указатель на базовую структуру драйвера (StepperDriver_t).
+ *           Фактически приводится к StepperDriverSTM32_t.
+ * @return
+ *   - Текущее значение системного таймера (мс) — при корректном указателе.
+ *   - 0 — если @p dr равен NULL или callback @c GetTick не был задан.
+ *
+ * @note Функция должна быть потокобезопасной и атомарной (возвращать 32-битное
+ *       значение за одну операцию чтения), поскольку вызывается как из основного
+ *       цикла (Stepper_TaskPlanner), так и потенциально из ISR.
+ *
+ * @warning Если callback @c GetTick не инициализирован (равен NULL), функция
+ *          вернёт 0, что приведёт к некорректной работе планировщика.
+ *          Убедитесь, что при создании экземпляра StepperDriverSTM32_t поле
+ *          @c .GetTick установлено (например, в @c HAL_GetTick).
+ *
+ * @code
+ * // Типичное использование при конфигурации драйвера:
+ * StepperDriverSTM32_t driver = {
+ *     ...
+ *     .GetTick = HAL_GetTick,   // <-- обязательно!
+ * };
+ * @endcode
+ *
+ * @see StepperDriver_GetTick()       — inline-обёртка интерфейса
+ * @see Stepper_TaskPlanner()         — потребитель системного времени
+ * @see StepperDriverSTM32_Init()     — проверка валидности GetTick при инициализации
+ */
 uint32_t StepperDriverSTM32_GetTick(StepperDriver_t *dr) {
     if (dr == NULL) return 0;
 
     StepperDriverSTM32_t *stp_dr = (StepperDriverSTM32_t *)dr;
+
+    // Защита от вызова без установленного callback'а
+    if (stp_dr->GetTick == NULL) return 0;
 
     return stp_dr->GetTick();
 }
