@@ -81,7 +81,7 @@ static uint32_t StepperDriver_CalcPeriod(const StepperDriverSTM32_t *stp, uint32
 /* =========================================================================
  * Реализация интерфейса StepperDriver_Interface
  * ========================================================================= */
-
+#include <stdio.h>
 /**
  * @brief Инициализация драйвера.
  *
@@ -110,7 +110,7 @@ void StepperDriverSTM32_Init(StepperDriver_t *dr) {
 
     // Остановка таймера и базовая настройка
     stp_dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;
-    stp_dr->htim.Instance->PSC = 0;
+    stp_dr->htim.Instance->PSC = stp_dr->htim.Clock / ((1ULL << stp_dr->htim.Bit) - 1) - 1;
     stp_dr->htim.Instance->ARR = StepperDriver_CalcPeriod(stp_dr, 1000);
     stp_dr->htim.Instance->CR1 |= TIM_CR1_ARPE;
 
@@ -121,7 +121,7 @@ void StepperDriverSTM32_Init(StepperDriver_t *dr) {
 
     // Включение прерывания по Update и сброс флага
     stp_dr->htim.Instance->DIER |= TIM_DIER_UIE;
-    stp_dr->htim.Instance->SR   &= ~TIM_SR_UIF;
+    stp_dr->htim.Instance->SR &= ~TIM_SR_UIF;
 }
 
 /**
@@ -138,7 +138,7 @@ void StepperDriverSTM32_Enable(StepperDriver_t *dr) {
 
     stp_dr->htim.Instance->CR1 |= TIM_CR1_CEN;
     TIM_ENABLE_COMPARE(&stp_dr->htim);
-    stp_dr->en.Port->BSRR = stp_dr->en.Pin;          // EN = 1
+    stp_dr->en.Port->BSRR = stp_dr->en.Pin; // EN = 1
     NVIC_EnableIRQ(stp_dr->htim.IRQn);
 }
 
@@ -156,7 +156,7 @@ void StepperDriverSTM32_Disable(StepperDriver_t *dr) {
 
     stp_dr->htim.Instance->CR1 &= ~TIM_CR1_CEN;
     TIM_DISABLE_COMPARE(&stp_dr->htim);
-    stp_dr->en.Port->BSRR = (uint32_t)stp_dr->en.Pin << 16;  // EN = 0 (сброс через BR)
+    stp_dr->en.Port->BSRR = (uint32_t)stp_dr->en.Pin << 16; // EN = 0 (сброс через BR)
     NVIC_DisableIRQ(stp_dr->htim.IRQn);
 }
 
@@ -194,7 +194,7 @@ bool StepperDriverSTM32_CanSetVel(StepperDriver_t *dr, int32_t vel) {
  * @return true в случае успеха, false — если скорость недостижима.
  */
 bool StepperDriverSTM32_SetVel(StepperDriver_t *dr, int32_t vel) {
-    if (dr == NULL) return false;
+        if (dr == NULL) return false;
     StepperDriverSTM32_t *stp_dr = (StepperDriverSTM32_t *)dr;
 
     if (stp_dr->htim.Instance == NULL || !IS_NVIC_DEVICE_IRQ(stp_dr->htim.IRQn)) return false;
@@ -205,7 +205,7 @@ bool StepperDriverSTM32_SetVel(StepperDriver_t *dr, int32_t vel) {
     if (vel != 0) {
         period = StepperDriver_CalcPeriod(stp_dr, (uint32_t)abs(vel));
         if (period <= ((1ULL << stp_dr->htim.Bit) - 1))
-            pulse = (period + 1) / 2;   // Скважность 50%
+            pulse = (period + 1) / 2; // Скважность 50%
         else
             return false;
     }
@@ -219,9 +219,9 @@ bool StepperDriverSTM32_SetVel(StepperDriver_t *dr, int32_t vel) {
 
     // Формируем значение для BSRR: установка или сброс пина DIR
     if (vel > 0)
-        stp_dr->dir.State = stp_dr->dir.Pin;          // DIR = 1
+        stp_dr->dir.State = stp_dr->dir.Pin; // DIR = 1
     else
-        stp_dr->dir.State = (uint32_t)stp_dr->dir.Pin << 16;  // DIR = 0
+        stp_dr->dir.State = (uint32_t)stp_dr->dir.Pin << 16; // DIR = 0
 
     NVIC_EnableIRQ(stp_dr->htim.IRQn);
 
@@ -244,18 +244,27 @@ void StepperDriverSTM32_TIMx_IRQHandler(StepperDriver_t *dr) {
     if (stp_dr->htim.Instance == NULL) return;
 
     if (stp_dr->htim.Instance->SR & TIM_SR_UIF) {
-        stp_dr->htim.Instance->SR &= ~TIM_SR_UIF;     // Сброс флага
+        stp_dr->htim.Instance->SR &= ~TIM_SR_UIF; // Сброс флага
         if (stp_dr->dir.Port != NULL)
             stp_dr->dir.Port->BSRR = stp_dr->dir.State;
     }
 }
 
+uint32_t StepperDriverSTM32_GetTick(StepperDriver_t *dr) {
+    if (dr == NULL) return 0;
+
+    StepperDriverSTM32_t *stp_dr = (StepperDriverSTM32_t *)dr;
+
+    return stp_dr->GetTick();
+}
+
 /// Таблица функций драйвера для STM32
 const StepperDriver_Interface StepperDriver_Itf = {
-    .Init             = StepperDriverSTM32_Init,
-    .Enable           = StepperDriverSTM32_Enable,
-    .Disable          = StepperDriverSTM32_Disable,
-    .CanSetVel        = StepperDriverSTM32_CanSetVel,
-    .SetVel           = StepperDriverSTM32_SetVel,
-    .TIMx_IRQHandler  = StepperDriverSTM32_TIMx_IRQHandler,
+    .Init            = StepperDriverSTM32_Init,
+    .Enable          = StepperDriverSTM32_Enable,
+    .Disable         = StepperDriverSTM32_Disable,
+    .CanSetVel       = StepperDriverSTM32_CanSetVel,
+    .SetVel          = StepperDriverSTM32_SetVel,
+    .TIMx_IRQHandler = StepperDriverSTM32_TIMx_IRQHandler,
+    .GetTick         = StepperDriverSTM32_GetTick,
 };

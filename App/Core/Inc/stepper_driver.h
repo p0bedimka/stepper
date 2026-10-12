@@ -86,8 +86,8 @@ static inline bool StepperDriver_SetVel(StepperDriver_t *dr, int32_t vel) {
 }
 
 /** @brief Обработчик прерывания таймера (вызывается из ISR). */
-static inline void StepperDriver_TIMx_IRQHandler(StepperDriver_t *std_dr) {
-    if (std_dr && std_dr->itf) std_dr->itf->TIMx_IRQHandler(std_dr);
+static inline void StepperDriver_TIMx_IRQHandler(StepperDriver_t *dr) {
+    if (dr && dr->itf) dr->itf->TIMx_IRQHandler(dr);
 }
 
 /**

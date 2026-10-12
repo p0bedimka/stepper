@@ -33,21 +33,21 @@
 void Stepper_Init(Stepper_t *motor, StepperDriver_t *dr, StepperPlanner_t *pl) {
     if (motor == NULL) return;
 
-    motor->dr = *dr;
-    StepperDriver_Init(&motor->dr);
+    motor->dr = dr;
+    StepperDriver_Init(motor->dr);
 
-    motor->pl = *pl;
-    StepperPlanner_Init(&motor->pl);
+    motor->pl = pl;
+    StepperPlanner_Init(motor->pl);
 
     motor->tar_vel = 0;
     motor->cur_vel = 0;
-    motor->time = StepperDriver_GetTick(&motor->dr);
+    motor->time = StepperDriver_GetTick(motor->dr);
 }
 
 /** @brief Включение питания драйвера. */
 void Stepper_Enable(Stepper_t *motor) {
     if (motor != NULL)
-        StepperDriver_Enable(&motor->dr);
+        StepperDriver_Enable(motor->dr);
 }
 
 /**
@@ -59,19 +59,19 @@ void Stepper_Enable(Stepper_t *motor) {
 void Stepper_Disable(Stepper_t *motor) {
     if (motor == NULL) return;
     if (motor->cur_vel == 0)
-        StepperDriver_Disable(&motor->dr);
+        StepperDriver_Disable(motor->dr);
 }
 
 /** @brief Получение текущего значения ускорения из планировщика. */
 uint32_t Stepper_GetAcc(Stepper_t *motor) {
     if (motor == NULL) return 0;
-    return StepperPlanner_GetAcc(&motor->pl);
+    return StepperPlanner_GetAcc(motor->pl);
 }
 
 /** @brief Установка нового значения ускорения. */
 void Stepper_SetAcc(Stepper_t *motor, uint32_t acc) {
     if (motor != NULL)
-        StepperPlanner_SetAcc(&motor->pl, acc);
+        StepperPlanner_SetAcc(motor->pl, acc);
 }
 
 /** @brief Получение текущей фактической скорости. */
@@ -89,7 +89,7 @@ int32_t Stepper_GetVel(Stepper_t *motor) {
  */
 void Stepper_SetVel(Stepper_t *motor, int32_t vel) {
     if (motor == NULL) return;
-    if (StepperDriver_CanSetVel(&motor->dr, vel))
+    if (StepperDriver_CanSetVel(motor->dr, vel))
         motor->tar_vel = vel;
 }
 
@@ -103,7 +103,7 @@ void Stepper_Stop(Stepper_t *motor) {
     if (motor != NULL) {
         motor->tar_vel = 0;
         motor->cur_vel = 0;
-        StepperDriver_SetVel(&motor->dr, 0);
+        StepperDriver_SetVel(motor->dr, 0);
     }
 }
 
@@ -127,8 +127,8 @@ void Stepper_Stop(Stepper_t *motor) {
 void Stepper_TaskPlanner(Stepper_t *motor) {
     if (motor == NULL) return;
 
-    uint32_t timeout = StepperPlanner_GetTimeAcc(&motor->pl);
-    uint32_t elapsed, time = StepperDriver_GetTick(&motor->dr);
+    uint32_t timeout = StepperPlanner_GetTimeAcc(motor->pl);
+    uint32_t elapsed, time = StepperDriver_GetTick(motor->dr);
 
     // Обработка переполнения 32-битного счётчика тиков
     if (time >= motor->time)
@@ -138,9 +138,9 @@ void Stepper_TaskPlanner(Stepper_t *motor) {
 
     if (timeout >= elapsed) {
         // Переходный процесс ещё идёт — получаем текущую скорость
-        int32_t vel = StepperPlanner_GetVel(&motor->pl, (float)elapsed);
+        int32_t vel = StepperPlanner_GetVel(motor->pl, (float)elapsed);
         if (vel != motor->cur_vel) {
-            StepperDriver_SetVel(&motor->dr, vel);
+            StepperDriver_SetVel(motor->dr, vel);
             motor->cur_vel = vel;
         }
     }
@@ -150,19 +150,19 @@ void Stepper_TaskPlanner(Stepper_t *motor) {
         // Если нужна смена направления — сначала тормозим до нуля
         if ((motor->tar_vel ^ motor->cur_vel) < 0 &&
             motor->cur_vel != 0 && motor->tar_vel != 0) {
-            StepperPlanner_SetVel(&motor->pl, motor->cur_vel, 0);
+            StepperPlanner_SetVel(motor->pl, motor->cur_vel, 0);
         }
         else {
-            StepperPlanner_SetVel(&motor->pl, motor->cur_vel, motor->tar_vel);
+            StepperPlanner_SetVel(motor->pl, motor->cur_vel, motor->tar_vel);
         }
-        motor->time = StepperDriver_GetTick(&motor->dr);
+        motor->time = StepperDriver_GetTick(motor->dr);
     }
 }
 
 /** @brief Прокси-вызов обработчика прерывания таймера драйвера. */
 void Stepper_TIMx_IRQHandler(Stepper_t *motor) {
     if (motor != NULL)
-        StepperDriver_TIMx_IRQHandler(&motor->dr);
+        StepperDriver_TIMx_IRQHandler(motor->dr);
 }
 
 /// Таблица функций модуля Stepper

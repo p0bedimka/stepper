@@ -102,40 +102,65 @@
 // Экземпляр мотора
 Stepper_t motor;
 
-// Настройка драйвера STM32
-StepperDriverSTM32_t driver = {
-    .base.itf = &StepperDriver_Itf,
-    .htim = {
-        .Instance = TIM2,
-        .Channel  = TIM_CHAN_1,
-        .Bit      = TIM_32_BIT,
-        .Clock    = 84000000,       // 84 МГц
-        .IRQn     = TIM2_IRQn,
-    },
-    .dir = { .Port = GPIOA, .Pin = GPIO_PIN_5 },
-    .en  = { .Port = GPIOA, .Pin = GPIO_PIN_6 },
-    .GetTick = HAL_GetTick,
-};
+// Экземпляр настройки драйвера STM32
+StepperDriverSTM32_t driver;
 
-// Настройка планировщика (например, S-кривая)
-Scurve_t planner = {
-    .base.itf = &Scurve_Itf,
-    .a       = 5000,      // ускорение 5000 шаг/с²
-    .v_jump  = 100,       // мёртвая зона 100 шаг/с
-};
+// Экземпляр настройка планировщика (например, S-кривая)
+Scurve_t planner;
 
 int main(void) {
     HAL_Init();
     SystemClock_Config();
     MX_GPIO_Init();
+    
+    __HAL_RCC_GPIOA_CLK_ENABLE();
+
+    HAL_GPIO_WritePin(GPIOA, EN_Pin | DIR_Pin, GPIO_PIN_RESET);
+
+    GPIO_InitStruct.Pin = EN_Pin | DIR_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+
+    __HAL_RCC_TIM2_CLK_ENABLE();
+
+    GPIO_InitStruct.Pin = PUL_Pin;
+    GPIO_InitStruct.Mode = GPIO_MODE_AF_PP;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(PUL_GPIO_Port, &GPIO_InitStruct);
 
     // Инициализация мотора
+    driver = (StepperDriverSTM32_t){
+        .base.itf = &StepperDriver_Itf,
+        .htim = {
+            .Instance = TIM2,
+            .Channel  = TIM_CHAN_1,
+            .Bit      = TIM_32_BIT,
+            .Clock    = 84000000,       // 84 МГц
+            .IRQn     = TIM2_IRQn,
+        },
+        .dir = { .Port = GPIOA, .Pin = GPIO_PIN_5 },
+        .en  = { .Port = GPIOA, .Pin = GPIO_PIN_6 },
+        .GetTick = HAL_GetTick,
+    };
+    
+    planner = (Scurve_t){
+        .base.itf = &Scurve_Itf,
+        .a       = 5000,      // ускорение 5000 шаг/с²
+        .v_jump  = 100,       // мёртвая зона 100 шаг/с
+    };
+    
     Stepper_Itf.Init(&motor, (StepperDriver_t*)&driver, (StepperPlanner_t*)&planner);
     Stepper_Itf.Enable(&motor);
+    
+    HAL_NVIC_SetPriority(TIM2_IRQn, 0, 0);
+    HAL_NVIC_EnableIRQ(TIM2_IRQn);
 
     while (1) {
-        // Периодический вызов планировщика (≥ 1 кГц)
+        // Периодический вызов планировщика
         Stepper_Itf.TaskPlanner(&motor);
+        HAL_Delay(1);
     }
 }
 ```
